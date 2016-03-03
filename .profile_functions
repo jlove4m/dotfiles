@@ -1,0 +1,46 @@
+warn() {
+  tput setaf 1 >&2
+  printf '%s\n' "$*"
+  tput sgr0 >&2
+}
+
+# returns true if the program is installed
+installed() {
+  hash "$1" >/dev/null 2>&1
+}
+
+# OSX `readlink` doesn't support the `-f` option (-f = follow components to make full path)
+# If `greadlink` is installed, use it
+# Otherwise, use the dir and basename provided to construct a sufficient stand-in
+relative_readlink() {
+  local dir="$1" base="$2"
+  if installed greadlink ; then
+    dirname "$(greadlink -f "$dir/$base")"
+  elif pushd "$dir" >/dev/null 2>&1 ; then
+    local link="$(readlink "$base")"
+    case "$link" in
+      /*) dirname "$link" ;;
+      *) pushd "$(dirname "$link")" >/dev/null 2>&1 ; pwd -P ; popd >/dev/null ;;
+    esac
+    popd >/dev/null
+  fi
+}
+
+## only binds the given termcap entr(y|ies) to a widget if the terminal supports it
+termcap_bind() {
+  local widget=$1 key termcap
+  shift
+  for termcap ; do
+    key="$(tput $termcap)"
+    [ -n "$key" ] && bind "\"$key\": $widget"
+  done
+}
+
+# Simulate Zsh's preexec hook (see: http://superuser.com/a/175802/73015 )
+# (This performs the histappend at a better time)
+simulate_preexec() {
+  [ -n "$COMP_LINE" ] || # skip if doing completion
+    [ "$BASH_COMMAND" = "$PROMPT_COMMAND" ] || # skip if generating prompt
+    history -a
+}
+
